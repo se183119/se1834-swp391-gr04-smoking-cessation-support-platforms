@@ -1,0 +1,74 @@
+# Development Environment Configuration
+spring:
+  # Database Configuration - Code First
+  datasource:
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    url: jdbc:sqlserver://localhost:1433;databaseName=smoking_cessation_dev_db;encrypt=true;trustServerCertificate=true;loginTimeout=30
+    username: sa
+    password: 12345
+    hikari:
+      connection-timeout: 20000
+      minimum-idle: 2
+      maximum-pool-size: 10
+      idle-timeout: 300000
+      max-lifetime: 1200000
+
+  # JPA Configuration - Code First Approach
+  jpa:
+    hibernate:
+      ddl-auto: update  # Auto-create/update tables from entities
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.SQLServerDialect
+        format_sql: true
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+    defer-datasource-initialization: true
+
+  # Security Configuration
+  security:
+    user:
+      name: admin
+      password: admin123
+      roles: ADMIN
+
+# CORS Configuration
+app:
+  cors:
+    allowed-origins: "http://localhost:3000,http://localhost:4200,http://localhost:8080"
+    allowed-methods: "*"
+    allowed-headers: "*"
+    allow-credentials: true
+
+# JWT Configuration
+jwt:
+  secret: SmokingCessationPlatformLocalDev2025!@#$%
+  expiration: 86400000  # 24 hours
+
+# Logging Configuration
+logging:
+  level:
+    com.smokingcessation.platform: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  file:
+    name: logs/smoking-cessation-platform.log
+
+# Management/Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
