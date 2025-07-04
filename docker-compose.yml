@@ -1,0 +1,20 @@
+services:
+  spring-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spring-app
+    ports:
+      - "8088:8088"
+    networks:
+      - app-network
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:sqlserver://sqlserver:1433;databaseName=smoking_cessation_db03;encrypt=true;trustServerCertificate=true
+#      SPRING_DATASOURCE_URL: jdbc:sqlserver://14.225.205.40:1433;databaseName=smoking_cessation_db03;encrypt=true;trustServerCertificate=true
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: Mk123!@#
+    restart: unless-stopped
+
+networks:
+  app-network:
+    external: true

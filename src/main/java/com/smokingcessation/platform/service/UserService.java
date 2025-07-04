@@ -1,385 +1,110 @@
 package com.smokingcessation.platform.service;
 
 import com.smokingcessation.platform.entity.User;
-import com.smokingcessation.platform.enums.UserRole;
+import com.smokingcessation.platform.entity.Role;
 import com.smokingcessation.platform.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.smokingcessation.platform.repository.RoleRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
+@RequiredArgsConstructor
 @Transactional
 public class UserService {
 
     private final UserRepository userRepository;
-    private final PasswordService passwordService;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
-    private static final int ACCOUNT_LOCK_DURATION_MINUTES = 30;
+    public User registerUser(User user, Set<Role.RoleName> roleNames) {
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
 
-    @Autowired
-    public UserService(UserRepository userRepository, PasswordService passwordService) {
-        this.userRepository = userRepository;
-        this.passwordService = passwordService;
-    }
-
-    // ========== User Creation & Registration ==========
-
-    /**
-     * Create new user with validation
-     */
-    public User createUser(String username, String email, String password,
-                           String firstName, String lastName, UserRole role) {
-
-        // Validate input
-        validateUserInput(username, email, password, firstName, lastName);
-
-        // Check if user already exists
-        if (userRepository.existsByUsername(username)) {
-            throw new IllegalArgumentException("Username already exists: " + username);
+        Set<Role> roles = new HashSet<>();
+        for (Role.RoleName roleName : roleNames) {
+            Role role = roleRepository.findByName(roleName)
+                    .orElseThrow(() -> new RuntimeException("Role không tồn tại: " + roleName));
+            roles.add(role);
         }
-
-        if (userRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("Email already exists: " + email);
-        }
-
-        // Create and configure user
-        User user = new User();
-        user.setUsername(username.trim().toLowerCase());
-        user.setEmail(email.trim().toLowerCase());
-        user.setPasswordHash(passwordService.encodePassword(password));
-        user.setFirstName(firstName.trim());
-        user.setLastName(lastName.trim());
-        user.setRole(role != null ? role : UserRole.MEMBER);
-        user.setIsActive(true);
-        user.setEmailVerified(false);
-        user.setFailedLoginAttempts(0);
+        user.setRoles(roles);
 
         return userRepository.save(user);
     }
 
-    /**
-     * Register new member user
-     */
-    public User registerMember(String username, String email, String password,
-                               String firstName, String lastName) {
-        return createUser(username, email, password, firstName, lastName, UserRole.MEMBER);
+    public User loginUser(String username, String password) {
+        User user = userRepository.findByEmail(username)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy user với username: " + username));
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new RuntimeException("Mật khẩu không đúng");
+        }
+
+        return user;
     }
 
-    // ========== User Retrieval ==========
-
-    /**
-     * Find user by ID
-     */
-    @Transactional(readOnly = true)
-    public Optional<User> findById(Long id) {
-        return userRepository.findById(id)
-                .filter(user -> !user.getIsDeleted());
-    }
-
-    /**
-     * Find user by username
-     */
-    @Transactional(readOnly = true)
     public Optional<User> findByUsername(String username) {
-        if (username == null || username.trim().isEmpty()) {
-            return Optional.empty();
-        }
-        return userRepository.findByUsername(username.trim());
+        return userRepository.findByUsername(username);
     }
 
-    /**
-     * Find user by email
-     */
-    @Transactional(readOnly = true)
     public Optional<User> findByEmail(String email) {
-        if (email == null || email.trim().isEmpty()) {
-            return Optional.empty();
-        }
-        return userRepository.findByEmail(email.trim());
+        return userRepository.findByEmail(email);
     }
 
-    /**
-     * Find user by username or email
-     */
-    @Transactional(readOnly = true)
-    public Optional<User> findByUsernameOrEmail(String usernameOrEmail) {
-        if (usernameOrEmail == null || usernameOrEmail.trim().isEmpty()) {
-            return Optional.empty();
-        }
-        return userRepository.findByUsernameOrEmail(usernameOrEmail.trim());
+    public Optional<User> findById(Long id) {
+        return userRepository.findById(id);
     }
 
-    /**
-     * Get all active users with pagination
-     */
-    @Transactional(readOnly = true)
-    public Page<User> findAllActiveUsers(Pageable pageable) {
-        return userRepository.findAllActiveUsers(pageable);
+    public List<User> findAllUsers() {
+        return userRepository.findAll();
     }
 
-    /**
-     * Get users by role with pagination
-     */
-    @Transactional(readOnly = true)
-    public Page<User> findUsersByRole(UserRole role, Pageable pageable) {
-        return userRepository.findByRole(role, pageable);
+    public List<User> findCoaches() {
+        return userRepository.findAllCoaches();
     }
 
-    // ========== User Update Operations ==========
+    public List<User> findActiveMembers() {
+        return userRepository.findActiveMembers();
+    }
 
-    /**
-     * Update user profile
-     */
-    public User updateUserProfile(Long userId, String firstName, String lastName,
-                                  String phoneNumber, String bio) {
-        User user = findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-
-        if (firstName != null && !firstName.trim().isEmpty()) {
-            user.setFirstName(firstName.trim());
-        }
-
-        if (lastName != null && !lastName.trim().isEmpty()) {
-            user.setLastName(lastName.trim());
-        }
-
-        if (phoneNumber != null) {
-            user.setPhoneNumber(phoneNumber.trim().isEmpty() ? null : phoneNumber.trim());
-        }
-
-        if (bio != null) {
-            user.setBio(bio.trim().isEmpty() ? null : bio.trim());
-        }
-
+    public User updateUser(User user) {
         return userRepository.save(user);
     }
 
-    /**
-     * Update user password
-     */
-    public void updatePassword(Long userId, String currentPassword, String newPassword) {
-        User user = findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-
-        // Verify current password
-        if (!passwordService.verifyPassword(currentPassword, user.getPasswordHash())) {
-            throw new IllegalArgumentException("Current password is incorrect");
-        }
-
-        // Validate new password
-        if (!passwordService.isValidPassword(newPassword)) {
-            throw new IllegalArgumentException("Invalid password format. " +
-                    passwordService.getPasswordRequirements());
-        }
-
-        // Update password
-        user.setPasswordHash(passwordService.encodePassword(newPassword));
-        userRepository.save(user);
+    public void deleteUser(Long id) {
+        userRepository.deleteById(id);
     }
 
-    /**
-     * Update user email
-     */
-    public void updateEmail(Long userId, String newEmail) {
-        User user = findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-
-        // Validate email format
-        if (!isValidEmail(newEmail)) {
-            throw new IllegalArgumentException("Invalid email format");
-        }
-
-        // Check if email already exists
-        if (userRepository.existsByEmailAndIdNot(newEmail.trim().toLowerCase(), userId)) {
-            throw new IllegalArgumentException("Email already exists: " + newEmail);
-        }
-
-        user.setEmail(newEmail.trim().toLowerCase());
-        user.setEmailVerified(false); // Reset email verification
-        userRepository.save(user);
+    public boolean existsByUsername(String username) {
+        return userRepository.existsByUsername(username);
     }
 
-    // ========== Account Security Operations ==========
-
-    /**
-     * Handle successful login
-     */
-    public void recordSuccessfulLogin(Long userId) {
-        User user = findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-
-        user.setLastLoginAt(LocalDateTime.now());
-        user.setFailedLoginAttempts(0);
-        user.setAccountLockedUntil(null);
-        userRepository.save(user);
+    public boolean existsByEmail(String email) {
+        return userRepository.existsByEmail(email);
     }
 
-    /**
-     * Handle failed login attempt
-     */
-    public void recordFailedLoginAttempt(String usernameOrEmail) {
-        Optional<User> userOpt = findByUsernameOrEmail(usernameOrEmail);
-
-        if (userOpt.isPresent()) {
-            User user = userOpt.get();
-            int attempts = user.getFailedLoginAttempts() + 1;
-            user.setFailedLoginAttempts(attempts);
-
-            // Lock account if max attempts reached
-            if (attempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
-                user.setAccountLockedUntil(LocalDateTime.now().plusMinutes(ACCOUNT_LOCK_DURATION_MINUTES));
-            }
-
-            userRepository.save(user);
-        }
+    public User updateUserStatus(Long userId, User.UserStatus status) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
+        user.setStatus(status);
+        return userRepository.save(user);
     }
 
-    /**
-     * Check if account is locked
-     */
-    @Transactional(readOnly = true)
-    public boolean isAccountLocked(Long userId) {
-        User user = findById(userId).orElse(null);
-        if (user == null) return false;
+    public User updateProfile(Long userId, String fullName, String phone, User.Gender gender, Integer age) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
 
-        return user.getAccountLockedUntil() != null &&
-                user.getAccountLockedUntil().isAfter(LocalDateTime.now());
-    }
+        user.setFullName(fullName);
+        user.setPhone(phone);
+        user.setGender(gender);
+        user.setAge(age);
 
-    /**
-     * Unlock user account
-     */
-    public void unlockAccount(Long userId) {
-        User user = findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-
-        user.setAccountLockedUntil(null);
-        user.setFailedLoginAttempts(0);
-        userRepository.save(user);
-    }
-
-    // ========== Account Status Operations ==========
-
-    /**
-     * Activate user account
-     */
-    public void activateUser(Long userId) {
-        User user = findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-
-        user.setIsActive(true);
-        userRepository.save(user);
-    }
-
-    /**
-     * Deactivate user account
-     */
-    public void deactivateUser(Long userId) {
-        User user = findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-
-        user.setIsActive(false);
-        userRepository.save(user);
-    }
-
-    /**
-     * Verify user email
-     */
-    public void verifyEmail(Long userId) {
-        User user = findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-
-        user.setEmailVerified(true);
-        userRepository.save(user);
-    }
-
-    /**
-     * Soft delete user
-     */
-    public void deleteUser(Long userId) {
-        User user = findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-
-        user.setIsDeleted(true);
-        user.setIsActive(false);
-        userRepository.save(user);
-    }
-
-    // ========== Validation Methods ==========
-
-    /**
-     * Validate user input data
-     */
-    private void validateUserInput(String username, String email, String password,
-                                   String firstName, String lastName) {
-        if (username == null || username.trim().isEmpty()) {
-            throw new IllegalArgumentException("Username is required");
-        }
-
-        if (username.trim().length() < 3 || username.trim().length() > 50) {
-            throw new IllegalArgumentException("Username must be between 3 and 50 characters");
-        }
-
-        if (!isValidEmail(email)) {
-            throw new IllegalArgumentException("Invalid email format");
-        }
-
-        if (!passwordService.isValidPassword(password)) {
-            throw new IllegalArgumentException("Invalid password format. " +
-                    passwordService.getPasswordRequirements());
-        }
-
-        if (firstName == null || firstName.trim().isEmpty()) {
-            throw new IllegalArgumentException("First name is required");
-        }
-
-        if (lastName == null || lastName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Last name is required");
-        }
-    }
-
-    /**
-     * Validate email format
-     */
-    private boolean isValidEmail(String email) {
-        if (email == null || email.trim().isEmpty()) {
-            return false;
-        }
-
-        String emailRegex = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$";
-        return email.trim().matches(emailRegex);
-    }
-
-    // ========== Statistics Methods ==========
-
-    /**
-     * Count users by role
-     */
-    @Transactional(readOnly = true)
-    public long countUsersByRole(UserRole role) {
-        return userRepository.countByRole(role);
-    }
-
-    /**
-     * Count active users
-     */
-    @Transactional(readOnly = true)
-    public long countActiveUsers() {
-        return userRepository.countActiveUsers();
-    }
-
-    /**
-     * Count users registered today
-     */
-    @Transactional(readOnly = true)
-    public long countUsersRegisteredToday() {
-        return userRepository.countUsersRegisteredToday();
+        return userRepository.save(user);
     }
 }

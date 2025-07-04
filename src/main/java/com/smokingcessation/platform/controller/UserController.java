@@ -1,239 +1,206 @@
 package com.smokingcessation.platform.controller;
 
-import com.smokingcessation.platform.dto.request.UpdateProfileRequest;
-import com.smokingcessation.platform.dto.response.ApiResponse;
-import com.smokingcessation.platform.dto.response.UserResponse;
+import com.smokingcessation.platform.dto.LoginRequestDTO;
 import com.smokingcessation.platform.entity.User;
-import com.smokingcessation.platform.service.AuthService;
-import com.smokingcessation.platform.service.JwtService;
+import com.smokingcessation.platform.entity.Role;
 import com.smokingcessation.platform.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Optional;
+import java.util.List;
+import java.util.Set;
 
 @RestController
-@RequestMapping("/users")
-@Tag(name = "User Management", description = "User management operations")
-@SecurityRequirement(name = "bearerAuth")
-@CrossOrigin(origins = "*", maxAge = 3600)
+@RequestMapping("/api/users")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+@Tag(name = "User Management", description = "APIs for managing users, registration, profiles and authentication")
 public class UserController {
 
     private final UserService userService;
-    private final AuthService authService;
-    private final JwtService jwtService;
 
-    @Autowired
-    public UserController(UserService userService, AuthService authService, JwtService jwtService) {
-        this.userService = userService;
-        this.authService = authService;
-        this.jwtService = jwtService;
-    }
+    @Operation(summary = "Register new user", description = "Register a new user account with role MEMBER by default")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "User registered successfully",
+                    content = @Content(schema = @Schema(implementation = User.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid user data or registration failed")
+    })
 
-    // ========== Profile Management ==========
-
-    /**
-     * Get user profile
-     */
-    @GetMapping("/profile")
-    @Operation(
-            summary = "Get user profile",
-            description = "Get the profile of the authenticated user"
-    )
-    public ResponseEntity<ApiResponse<UserResponse>> getUserProfile(
-            HttpServletRequest request) {
-
+    @PostMapping("/login")
+    public ResponseEntity<User> loginUser(@RequestBody LoginRequestDTO user) {
         try {
-            // Extract and validate token
-            String token = extractAndValidateToken(request);
-            if (token == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ApiResponse.error("Invalid or missing authentication token"));
-            }
-
-            Long userId = jwtService.extractUserId(token);
-            Optional<User> userOpt = userService.findById(userId);
-
-            if (userOpt.isPresent()) {
-                UserResponse userResponse = UserResponse.from(userOpt.get());
-                return ResponseEntity.ok(ApiResponse.success("Profile retrieved successfully", userResponse));
-            } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ApiResponse.error("User not found"));
-            }
-
+            User loggedInUser = userService.loginUser(user.getUsername(), user.getPassword());
+            return ResponseEntity.ok(loggedInUser);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Failed to retrieve profile: " + e.getMessage()));
+            return ResponseEntity.badRequest().build();
         }
     }
 
-    /**
-     * Update user profile
-     */
-    @PutMapping("/profile")
-    @Operation(
-            summary = "Update user profile",
-            description = "Update the profile of the authenticated user"
-    )
-    public ResponseEntity<ApiResponse<UserResponse>> updateUserProfile(
-            @Valid @RequestBody UpdateProfileRequest updateRequest,
-            BindingResult bindingResult,
-            HttpServletRequest request) {
-
-        // Validate request
-        if (bindingResult.hasErrors()) {
-            String errorMessage = bindingResult.getFieldErrors().get(0).getDefaultMessage();
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Validation error: " + errorMessage));
-        }
-
+    @PostMapping("/register")
+    public ResponseEntity<User> registerUser(@RequestBody UserRegistrationRequest request) {
         try {
-            // Extract and validate token
-            String token = extractAndValidateToken(request);
-            if (token == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ApiResponse.error("Invalid or missing authentication token"));
-            }
+            User user = new User();
+            user.setUsername(request.getUsername());
+            user.setEmail(request.getEmail());
+            user.setPassword(request.getPassword());
+            user.setFullName(request.getFullName());
+            user.setPhone(request.getPhone());
+            user.setGender(request.getGender());
+            user.setAge(request.getAge());
 
-            Long userId = jwtService.extractUserId(token);
+            Set<Role.RoleName> roles = Set.of(Role.RoleName.MEMBER); // Mặc định là MEMBER
 
-            // Update profile
-            AuthService.AuthenticationResult result = authService.updateProfile(
-                    userId,
-                    updateRequest.getFirstName(),
-                    updateRequest.getLastName(),
-                    updateRequest.getPhoneNumber(),
-                    updateRequest.getBio()
-            );
-
-            if (result.isSuccess()) {
-                UserResponse userResponse = UserResponse.from(result.getUser());
-                return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", userResponse));
-            } else {
-                return ResponseEntity.badRequest()
-                        .body(ApiResponse.error(result.getMessage()));
-            }
-
+            User savedUser = userService.registerUser(user, roles);
+            return ResponseEntity.ok(savedUser);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Profile update failed: " + e.getMessage()));
+            return ResponseEntity.badRequest().build();
         }
     }
 
-    // ========== User Lookup ==========
+    @Operation(summary = "Get user by ID", description = "Retrieve user information by user ID")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "User found",
+                    content = @Content(schema = @Schema(implementation = User.class))),
+        @ApiResponse(responseCode = "404", description = "User not found")
+    })
+    @GetMapping("/{id}")
+    public ResponseEntity<User> getUserById(
+            @Parameter(description = "User ID", example = "1")
+            @PathVariable Long id) {
+        return userService.findById(id)
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
+    }
 
-    /**
-     * Get user by ID (Admin only - simplified for Phase 2)
-     */
-    @GetMapping("/{userId}")
-    @Operation(
-            summary = "Get user by ID",
-            description = "Get user information by user ID"
-    )
-    public ResponseEntity<ApiResponse<UserResponse>> getUserById(
-            @Parameter(description = "User ID")
-            @PathVariable Long userId,
-            HttpServletRequest request) {
+    @Operation(summary = "Get user by username", description = "Retrieve user information by username")
+    @GetMapping("/username/{username}")
+    public ResponseEntity<User> getUserByUsername(
+            @Parameter(description = "Username", example = "john_doe")
+            @PathVariable String username) {
+        return userService.findByUsername(username)
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
+    }
 
+    @Operation(summary = "Update user profile", description = "Update user profile information")
+    @PutMapping("/{id}/profile")
+    public ResponseEntity<User> updateProfile(
+            @Parameter(description = "User ID") @PathVariable Long id,
+            @RequestBody ProfileUpdateRequest request) {
         try {
-            // Extract and validate token
-            String token = extractAndValidateToken(request);
-            if (token == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ApiResponse.error("Invalid or missing authentication token"));
-            }
-
-            // For Phase 2, allow users to view their own profile or any profile
-            // In Phase 3, add role-based access control
-            Optional<User> userOpt = userService.findById(userId);
-
-            if (userOpt.isPresent()) {
-                UserResponse userResponse = UserResponse.from(userOpt.get());
-                return ResponseEntity.ok(ApiResponse.success("User retrieved successfully", userResponse));
-            } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ApiResponse.error("User not found"));
-            }
-
+            User updatedUser = userService.updateProfile(id, request.getFullName(),
+                request.getPhone(), request.getGender(), request.getAge());
+            return ResponseEntity.ok(updatedUser);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Failed to retrieve user: " + e.getMessage()));
+            return ResponseEntity.badRequest().build();
         }
     }
 
-    // ========== User Listing ==========
+    @Operation(summary = "Get all coaches", description = "Retrieve list of all available coaches")
+    @GetMapping("/coaches")
+    public ResponseEntity<List<User>> getCoaches() {
+        List<User> coaches = userService.findCoaches();
+        return ResponseEntity.ok(coaches);
+    }
 
-    /**
-     * Get all users with pagination
-     */
-    @GetMapping
-    @Operation(
-            summary = "Get all users",
-            description = "Get paginated list of all active users"
-    )
-    public ResponseEntity<ApiResponse<Page<UserResponse>>> getAllUsers(
-            @Parameter(description = "Page number (0-based)")
-            @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Page size")
-            @RequestParam(defaultValue = "10") int size,
-            @Parameter(description = "Sort field")
-            @RequestParam(defaultValue = "createdAt") String sortBy,
-            @Parameter(description = "Sort direction")
-            @RequestParam(defaultValue = "desc") String sortDir,
-            HttpServletRequest request) {
+    @Operation(summary = "Get active members", description = "Retrieve list of active members with valid membership")
+    @GetMapping("/active-members")
+    public ResponseEntity<List<User>> getActiveMembers() {
+        List<User> activeMembers = userService.findActiveMembers();
+        return ResponseEntity.ok(activeMembers);
+    }
 
+    @Operation(summary = "Check username availability", description = "Check if username already exists")
+    @GetMapping("/check-username/{username}")
+    public ResponseEntity<Boolean> checkUsernameExists(
+            @Parameter(description = "Username to check") @PathVariable String username) {
+        boolean exists = userService.existsByUsername(username);
+        return ResponseEntity.ok(exists);
+    }
+
+    @Operation(summary = "Check email availability", description = "Check if email already exists")
+    @GetMapping("/check-email/{email}")
+    public ResponseEntity<Boolean> checkEmailExists(
+            @Parameter(description = "Email to check") @PathVariable String email) {
+        boolean exists = userService.existsByEmail(email);
+        return ResponseEntity.ok(exists);
+    }
+
+    @Operation(summary = "[ADMIN] Update user status", description = "Admin function to update user status")
+    @PutMapping("/{id}/status")
+    public ResponseEntity<User> updateUserStatus(@PathVariable Long id,
+                                               @RequestBody StatusUpdateRequest request) {
         try {
-            // Extract and validate token
-            String token = extractAndValidateToken(request);
-            if (token == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ApiResponse.error("Invalid or missing authentication token"));
-            }
-
-            // Create pagination and sorting
-            Sort.Direction direction = sortDir.equalsIgnoreCase("desc") ?
-                    Sort.Direction.DESC : Sort.Direction.ASC;
-            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
-
-            // Get users
-            Page<User> usersPage = userService.findAllActiveUsers(pageable);
-            Page<UserResponse> userResponsePage = usersPage.map(UserResponse::from);
-
-            return ResponseEntity.ok(ApiResponse.success("Users retrieved successfully", userResponsePage));
-
+            User updatedUser = userService.updateUserStatus(id, request.getStatus());
+            return ResponseEntity.ok(updatedUser);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Failed to retrieve users: " + e.getMessage()));
+            return ResponseEntity.badRequest().build();
         }
     }
 
-    // ========== Utility Methods ==========
+    @Operation(summary = "[ADMIN] Get all users", description = "Admin function to retrieve all users")
+    @GetMapping("/all")
+    public ResponseEntity<List<User>> getAllUsers() {
+        List<User> users = userService.findAllUsers();
+        return ResponseEntity.ok(users);
+    }
 
-    /**
-     * Extract and validate JWT token from request
-     */
-    private String extractAndValidateToken(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        String token = jwtService.extractTokenFromHeader(authHeader);
+    // DTOs
+    public static class UserRegistrationRequest {
+        private String username;
+        private String email;
+        private String password;
+        private String fullName;
+        private String phone;
+        private User.Gender gender;
+        private Integer age;
 
-        if (token != null && jwtService.validateToken(token)) {
-            return token;
-        }
+        // Getters and setters
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+        public String getFullName() { return fullName; }
+        public void setFullName(String fullName) { this.fullName = fullName; }
+        public String getPhone() { return phone; }
+        public void setPhone(String phone) { this.phone = phone; }
+        public User.Gender getGender() { return gender; }
+        public void setGender(User.Gender gender) { this.gender = gender; }
+        public Integer getAge() { return age; }
+        public void setAge(Integer age) { this.age = age; }
+    }
 
-        return null;
+    public static class ProfileUpdateRequest {
+        private String fullName;
+        private String phone;
+        private User.Gender gender;
+        private Integer age;
+
+        // Getters and setters
+        public String getFullName() { return fullName; }
+        public void setFullName(String fullName) { this.fullName = fullName; }
+        public String getPhone() { return phone; }
+        public void setPhone(String phone) { this.phone = phone; }
+        public User.Gender getGender() { return gender; }
+        public void setGender(User.Gender gender) { this.gender = gender; }
+        public Integer getAge() { return age; }
+        public void setAge(Integer age) { this.age = age; }
+    }
+
+    public static class StatusUpdateRequest {
+        private User.UserStatus status;
+
+        public User.UserStatus getStatus() { return status; }
+        public void setStatus(User.UserStatus status) { this.status = status; }
     }
 }
