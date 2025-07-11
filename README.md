@@ -78,6 +78,6 @@ Chúng tôi chào đón mọi ý kiến đóng góp từ cộng đồng! Hãy m�
 
 ### 🧑‍💻 Nhóm Phát Triển
 
-- **Nhóm SE1834-SWP391-GR04**
+- **Team 04**
 
 ### ⭐️ Cùng nhau xây dựng cộng đồng không khói thuốc!
