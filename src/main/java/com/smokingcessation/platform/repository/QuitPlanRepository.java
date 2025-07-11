@@ -12,16 +12,7 @@ import java.util.Optional;
 
 @Repository
 public interface QuitPlanRepository extends JpaRepository<QuitPlan, Long> {
-
-    List<QuitPlan> findByUser(User user);
-
     List<QuitPlan> findByUserId(Long userId);
-
-    List<QuitPlan> findByStatus(QuitPlan.PlanStatus status);
-
-    @Query("SELECT qp FROM QuitPlan qp WHERE qp.user.id = :userId AND qp.status = :status")
-    Optional<QuitPlan> findActiveQuitPlanByUserId(@Param("userId") Long userId, @Param("status") QuitPlan.PlanStatus status);
-
-    @Query("SELECT qp FROM QuitPlan qp WHERE qp.user.id = :userId ORDER BY qp.createdAt DESC")
-    List<QuitPlan> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+    Optional<QuitPlan> findTopByUserIdOrderByStartDateDesc(Long userId);
+    QuitPlan findByUserAndIsDoneFalse(User user);
 }
