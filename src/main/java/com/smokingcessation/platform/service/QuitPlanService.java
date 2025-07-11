@@ -1,122 +1,161 @@
 package com.smokingcessation.platform.service;
 
-import com.smokingcessation.platform.entity.QuitPlan;
-import com.smokingcessation.platform.entity.QuitPlanPhase;
-import com.smokingcessation.platform.entity.User;
-import com.smokingcessation.platform.entity.SmokingStatus;
-import com.smokingcessation.platform.repository.QuitPlanRepository;
-import com.smokingcessation.platform.repository.SmokingStatusRepository;
+import com.smokingcessation.platform.dto.*;
+import com.smokingcessation.platform.entity.*;
+import com.smokingcessation.platform.repository.*;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class QuitPlanService {
+    private final QuitPlanRepository planRepo;
+    private final PlanMilestoneRepository milestoneRepo;
+    private final UserRepository userRepo;
+    private final UserProgressRepository progressRepo;
 
-    private final QuitPlanRepository quitPlanRepository;
-    private final SmokingStatusRepository smokingStatusRepository;
+    @Transactional
+    public PlanResponse createPlan(CreatePlanRequest req) {
+        User user = userRepo.findById(req.getUserId())
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
-    public QuitPlan createQuitPlan(QuitPlan quitPlan) {
-        return quitPlanRepository.save(quitPlan);
+        QuitPlan plan = new QuitPlan();
+        plan.setUser(user);
+        plan.setStartDate(LocalDate.now());
+        plan.setQuitMonths(req.getQuitMonths());
+        plan = planRepo.save(plan);
+
+        // Tính milestones theo stair-step
+        int N0 = req.getCigsPerDay();
+        int totalDays = req.getQuitMonths().multiply(BigDecimal.valueOf(30)).intValue();
+        double D = (double) totalDays / N0;
+
+        QuitPlan savedPlan = planRepo.save(plan);
+        List<PlanMilestone> list = IntStream.rangeClosed(1, N0)
+                .mapToObj(k -> {
+                    PlanMilestone m = new PlanMilestone();
+                    m.setQuitPlan(savedPlan);
+                    m.setStepIndex(k);
+                    m.setDayOffset((int) Math.ceil(k * D));
+                    m.setTargetCigarettes(N0 - k);
+                    return m;
+                })
+                .collect(Collectors.toList());
+
+        milestoneRepo.saveAll(list);
+
+        // Trả về DTO
+        PlanResponse resp = new PlanResponse();
+        resp.setPlanId(plan.getId());
+        resp.setStartDate(plan.getStartDate());
+        resp.setQuitMonths(plan.getQuitMonths());
+        resp.setMilestones(list.stream().map(m -> {
+            MilestoneDto d = new MilestoneDto();
+            d.setStepIndex(m.getStepIndex());
+            d.setDayOffset(m.getDayOffset());
+            d.setTargetCigarettes(m.getTargetCigarettes());
+            return d;
+        }).collect(Collectors.toList()));
+        return resp;
     }
 
-    // Hệ thống tự động tạo kế hoạch cai thuốc dựa trên thông tin người dùng
-    public QuitPlan generateSystemQuitPlan(User user, String quitReason, LocalDate startDate, LocalDate targetDate) {
-        Optional<SmokingStatus> smokingStatusOpt = smokingStatusRepository.findByUser(user);
+    @Transactional(readOnly = true)
+    public PlanResponse getPlanById(Long planId) {
+        QuitPlan plan = planRepo.findById(planId)
+                .orElseThrow(() -> new EntityNotFoundException("Plan not found id=" + planId));
 
-        QuitPlan quitPlan = new QuitPlan();
-        quitPlan.setUser(user);
-        quitPlan.setTitle("Kế hoạch cai thuốc do hệ thống tạo");
-        quitPlan.setQuitReason(quitReason);
-        quitPlan.setStartDate(startDate);
-        quitPlan.setTargetQuitDate(targetDate);
-        quitPlan.setQuitMethod(QuitPlan.QuitMethod.GRADUAL_REDUCTION);
-        quitPlan.setIsSystemGenerated(true);
+        // Lấy list milestone đã order by stepIndex
+        List<PlanMilestone> milestones = milestoneRepo.findByQuitPlanIdOrderByStepIndex(planId);
 
-        // Tạo các giai đoạn dựa trên thông tin hút thuốc hiện tại
-        List<QuitPlanPhase> phases = generateQuitPhases(quitPlan, smokingStatusOpt.orElse(null));
-        quitPlan.setPhases(phases);
+        // Map xuống DTO
+        List<MilestoneDto> dtoList = milestones.stream()
+                .map(m -> {
+                    MilestoneDto d = new MilestoneDto();
+                    d.setStepIndex(m.getStepIndex());
+                    d.setDayOffset(m.getDayOffset());
+                    d.setTargetCigarettes(m.getTargetCigarettes());
+                    return d;
+                })
+                .collect(Collectors.toList());
 
-        return quitPlanRepository.save(quitPlan);
+        // Build response
+        PlanResponse resp = new PlanResponse();
+        resp.setPlanId(plan.getId());
+        resp.setStartDate(plan.getStartDate());
+        resp.setQuitMonths(plan.getQuitMonths());
+        resp.setMilestones(dtoList);
+
+        return resp;
     }
 
-    private List<QuitPlanPhase> generateQuitPhases(QuitPlan quitPlan, SmokingStatus smokingStatus) {
-        List<QuitPlanPhase> phases = new ArrayList<>();
+    @Transactional
+    public ProgressResponse upsertProgress(Long planId, ProgressRequest req) {
+        QuitPlan plan = planRepo.findById(planId)
+                .orElseThrow(() -> new EntityNotFoundException("Plan not found"));
 
-        if (smokingStatus != null) {
-            int currentCigarettes = smokingStatus.getCigarettesPerDay();
-            LocalDate startDate = quitPlan.getStartDate();
+        UserProgress up = progressRepo.findByQuitPlanIdAndLogDate(planId, req.getLogDate())
+                .orElseGet(() -> {
+                    UserProgress np = new UserProgress();
+                    np.setQuitPlan(plan);
+                    np.setLogDate(req.getLogDate());
+                    return np;
+                });
+        up.setSmoked(req.getSmoked());
+        up.setNote(req.getNote());
+        up = progressRepo.save(up);
 
-            // Giai đoạn 1: Giảm 50%
-            QuitPlanPhase phase1 = new QuitPlanPhase();
-            phase1.setQuitPlan(quitPlan);
-            phase1.setTitle("Giai đoạn 1: Giảm ban đầu");
-            phase1.setDescription("Giảm 50% số lượng thuốc hút hàng ngày");
-            phase1.setPhaseNumber(1);
-            phase1.setStartDate(startDate);
-            phase1.setEndDate(startDate.plusWeeks(2));
-            phase1.setTargetCigarettesPerDay(currentCigarettes / 2);
-            phase1.setGoals("Giảm từ " + currentCigarettes + " xuống " + (currentCigarettes / 2) + " điếu/ngày");
-            phases.add(phase1);
-
-            // Giai đoạn 2: Giảm xuống 25%
-            QuitPlanPhase phase2 = new QuitPlanPhase();
-            phase2.setQuitPlan(quitPlan);
-            phase2.setTitle("Giai đoạn 2: Giảm sâu");
-            phase2.setDescription("Giảm xuống 25% so với ban đầu");
-            phase2.setPhaseNumber(2);
-            phase2.setStartDate(startDate.plusWeeks(2));
-            phase2.setEndDate(startDate.plusWeeks(4));
-            phase2.setTargetCigarettesPerDay(Math.max(1, currentCigarettes / 4));
-            phase2.setGoals("Giảm xuống còn " + Math.max(1, currentCigarettes / 4) + " điếu/ngày");
-            phases.add(phase2);
-
-            // Giai đoạn 3: Cai hoàn toàn
-            QuitPlanPhase phase3 = new QuitPlanPhase();
-            phase3.setQuitPlan(quitPlan);
-            phase3.setTitle("Giai đoạn 3: Cai hoàn toàn");
-            phase3.setDescription("Ngưng hút thuốc hoàn toàn");
-            phase3.setPhaseNumber(3);
-            phase3.setStartDate(startDate.plusWeeks(4));
-            phase3.setEndDate(quitPlan.getTargetQuitDate());
-            phase3.setTargetCigarettesPerDay(0);
-            phase3.setGoals("Không hút thuốc hoàn toàn");
-            phases.add(phase3);
-        }
-
-        return phases;
+        ProgressResponse resp = new ProgressResponse();
+        resp.setLogDate(up.getLogDate());
+        resp.setSmoked(up.getSmoked());
+        resp.setNote(up.getNote());
+        return resp;
     }
 
-    public List<QuitPlan> findUserQuitPlans(Long userId) {
-        return quitPlanRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    public List<ProgressResponse> getProgressInMonth(Long planId, YearMonth ym) {
+        LocalDate from = ym.atDay(1);
+        LocalDate to   = ym.atEndOfMonth();
+        return progressRepo.findByQuitPlanIdAndLogDateBetween(planId, from, to)
+                .stream()
+                .map(up -> {
+                    ProgressResponse p = new ProgressResponse();
+                    p.setLogDate(up.getLogDate());
+                    p.setSmoked(up.getSmoked());
+                    p.setNote(up.getNote());
+                    return p;
+                }).collect(Collectors.toList());
     }
 
-    public Optional<QuitPlan> findActiveQuitPlan(Long userId) {
-        return quitPlanRepository.findActiveQuitPlanByUserId(userId, QuitPlan.PlanStatus.ACTIVE);
-    }
+    public List<PlanResponse> getByUser(Long userId){
+        return planRepo.findByUserId(userId)
+                .stream()
+                .map(plan -> {
+                    PlanResponse resp = new PlanResponse();
+                    resp.setPlanId(plan.getId());
+                    resp.setStartDate(plan.getStartDate());
+                    resp.setQuitMonths(plan.getQuitMonths());
 
-    public QuitPlan updateQuitPlan(QuitPlan quitPlan) {
-        return quitPlanRepository.save(quitPlan);
-    }
+                    List<PlanMilestone> milestones = milestoneRepo.findByQuitPlanIdOrderByStepIndex(plan.getId());
+                    resp.setMilestones(milestones.stream().map(m -> {
+                        MilestoneDto d = new MilestoneDto();
+                        d.setStepIndex(m.getStepIndex());
+                        d.setDayOffset(m.getDayOffset());
+                        d.setTargetCigarettes(m.getTargetCigarettes());
+                        return d;
+                    }).collect(Collectors.toList()));
 
-    public QuitPlan customizeQuitPlan(Long planId, String customizationNotes) {
-        QuitPlan plan = quitPlanRepository.findById(planId)
-            .orElseThrow(() -> new RuntimeException("Không tìm thấy kế hoạch cai thuốc"));
-        plan.setCustomizationNotes(customizationNotes);
-        return quitPlanRepository.save(plan);
-    }
-
-    public void updatePlanStatus(Long planId, QuitPlan.PlanStatus status) {
-        QuitPlan plan = quitPlanRepository.findById(planId)
-            .orElseThrow(() -> new RuntimeException("Không tìm thấy kế hoạch cai thuốc"));
-        plan.setStatus(status);
-        quitPlanRepository.save(plan);
+                    return resp;
+                }).collect(Collectors.toList());
     }
 }
+
