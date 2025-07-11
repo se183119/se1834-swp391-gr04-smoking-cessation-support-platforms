@@ -36,7 +36,17 @@
     - com.microsoft.sqlserver:mssql-jdbc
 (Driver kết nối SQL Server)
     - com.h2database:h2
-(Database H2 in-memory, thường dùng cho test/dev) 
+(Database H2 in-memory, thường dùng cho test/dev)
+  - API Documentation
+    - org.springdoc:springdoc-openapi-starter-webmvc-ui
+(Tạo tài liệu API tự động với Swagger UI/OpenAPI)
+  - Utilities & Others
+    - org.projectlombok:lombok
+(Tự động sinh getter/setter, giảm code boilerplate)
+    - org.modelmapper:modelmapper
+(Map dữ liệu giữa entity và DTO)
+    - vn.payos:payos-java
+(Tích hợp thanh toán PayOS) 
 
 ### ⚡️ Hướng Dẫn Cài Đặt Nhanh
 
