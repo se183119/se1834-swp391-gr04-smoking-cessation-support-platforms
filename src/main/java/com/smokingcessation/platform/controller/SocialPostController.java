@@ -117,27 +117,47 @@ public class SocialPostController {
         }
     }
 
-    // Like bài đăng
-    @PostMapping("/{postId}/like")
-    public ResponseEntity<SocialPost> likePost(@PathVariable Long postId) {
-        try {
-            SocialPost post = socialPostService.likePost(postId);
-            return ResponseEntity.ok(post);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
+    // // Like bài đăng
+    // @PostMapping("/{postId}/like")
+    // public ResponseEntity<SocialPost> likePost(@PathVariable Long postId) {
+    //     try {
+    //         SocialPost post = socialPostService.likePost(postId);
+    //         return ResponseEntity.ok(post);
+    //     } catch (Exception e) {
+    //         return ResponseEntity.badRequest().build();
+    //     }
+    // }
 
-    // Unlike bài đăng
-    @PostMapping("/{postId}/unlike")
-    public ResponseEntity<SocialPost> unlikePost(@PathVariable Long postId) {
-        try {
-            SocialPost post = socialPostService.unlikePost(postId);
-            return ResponseEntity.ok(post);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
+    // // Unlike bài đăng
+    // @PostMapping("/{postId}/unlike")
+    // public ResponseEntity<SocialPost> unlikePost(@PathVariable Long postId) {
+    //     try {
+    //         SocialPost post = socialPostService.unlikePost(postId);
+    //         return ResponseEntity.ok(post);
+    //     } catch (Exception e) {
+    //         return ResponseEntity.badRequest().build();
+    //     }
+    // }
+
+    @PostMapping("/{postId}/like")
+public ResponseEntity<SocialPost> likePost(@PathVariable Long postId, @RequestParam Long userId) {
+    try {
+        SocialPost post = socialPostService.likePost(userId, postId);
+        return ResponseEntity.ok(post);
+    } catch (Exception e) {
+        return ResponseEntity.badRequest().build();
     }
+}
+
+@PostMapping("/{postId}/unlike")
+public ResponseEntity<SocialPost> unlikePost(@PathVariable Long postId, @RequestParam Long userId) {
+    try {
+        SocialPost post = socialPostService.unlikePost(userId, postId);
+        return ResponseEntity.ok(post);
+    } catch (Exception e) {
+        return ResponseEntity.badRequest().build();
+    }
+}
 
     // Cập nhật bài đăng
     @PutMapping("/{postId}")
