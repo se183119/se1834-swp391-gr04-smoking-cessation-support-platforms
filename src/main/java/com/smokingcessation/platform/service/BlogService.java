@@ -105,73 +105,25 @@ public class BlogService {
         blogPostRepository.save(post);
     }
 
-    // // Like bài viết
-    // public BlogPost likePost(Long postId) {
-    //     BlogPost post = blogPostRepository.findById(postId)
-    //         .orElseThrow(() -> new RuntimeException("Không tìm thấy bài viết"));
-
-    //     post.setLikesCount(post.getLikesCount() + 1);
-
-    //     return blogPostRepository.save(post);
-    // }
-
-    // // Unlike bài viết
-    // public BlogPost unlikePost(Long postId) {
-    //     BlogPost post = blogPostRepository.findById(postId)
-    //         .orElseThrow(() -> new RuntimeException("Không tìm thấy bài viết"));
-
-    //     if (post.getLikesCount() > 0) {
-    //         post.setLikesCount(post.getLikesCount() - 1);
-    //     }
-
-    //     return blogPostRepository.save(post);
-    // }
-
-    public BlogPost likePost(Long userId, Long postId) {
-        // Kiểm tra user tồn tại
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
-        
-        // Kiểm tra post tồn tại
+    // Like bài viết
+    public BlogPost likePost(Long postId) {
         BlogPost post = blogPostRepository.findById(postId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy bài viết"));
-        
-        // Kiểm tra đã like chưa
-        if (likeRepository.existsByUserIdAndPostIdAndPostType(userId, postId, "BLOG")) {
-            throw new RuntimeException("Đã like bài viết này rồi");
-        }
-        
-        // Tạo like record
-        Like like = new Like();
-        like.setUser(user);
-        like.setPostId(postId);
-        like.setPostType("BLOG");
-        likeRepository.save(like);
-        
-        // Cập nhật count
-        post.setLikesCount(likeRepository.countByPostIdAndPostType(postId, "BLOG"));
+
+        post.setLikesCount(post.getLikesCount() + 1);
+
         return blogPostRepository.save(post);
     }
 
-    public BlogPost unlikePost(Long userId, Long postId) {
-        // Kiểm tra user tồn tại
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
-        
-        // Kiểm tra post tồn tại
+    // Unlike bài viết
+    public BlogPost unlikePost(Long postId) {
         BlogPost post = blogPostRepository.findById(postId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy bài viết"));
-        
-        // Kiểm tra đã like chưa
-        if (!likeRepository.existsByUserIdAndPostIdAndPostType(userId, postId, "BLOG")) {
-            throw new RuntimeException("Chưa like bài viết này");
+
+        if (post.getLikesCount() > 0) {
+            post.setLikesCount(post.getLikesCount() - 1);
         }
-        
-        // Xóa like record
-        likeRepository.deleteByUserIdAndPostIdAndPostType(userId, postId, "BLOG");
-        
-        // Cập nhật count
-        post.setLikesCount(likeRepository.countByPostIdAndPostType(postId, "BLOG"));
+
         return blogPostRepository.save(post);
     }
 

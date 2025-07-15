@@ -109,47 +109,28 @@ public class BlogController {
         }
     }
 
-    // // Like bài blog
-    // @PostMapping("/{postId}/like")
-    // public ResponseEntity<BlogPost> likePost(@PathVariable Long postId) {
-    //     try {
-    //         BlogPost post = blogService.likePost(postId);
-    //         return ResponseEntity.ok(post);
-    //     } catch (Exception e) {
-    //         return ResponseEntity.badRequest().build();
-    //     }
-    // }
-
-    // // Unlike bài blog
-    // @PostMapping("/{postId}/unlike")
-    // public ResponseEntity<BlogPost> unlikePost(@PathVariable Long postId) {
-    //     try {
-    //         BlogPost post = blogService.unlikePost(postId);
-    //         return ResponseEntity.ok(post);
-    //     } catch (Exception e) {
-    //         return ResponseEntity.badRequest().build();
-    //     }
-    // }
-
+    // Like bài blog
     @PostMapping("/{postId}/like")
-public ResponseEntity<BlogPost> likePost(@PathVariable Long postId, @RequestParam Long userId) {
-    try {
-        BlogPost post = blogService.likePost(userId, postId);
-        return ResponseEntity.ok(post);
-    } catch (Exception e) {
-        return ResponseEntity.badRequest().build();
+    public ResponseEntity<BlogPost> likePost(@PathVariable Long postId) {
+        try {
+            BlogPost post = blogService.likePost(postId);
+            return ResponseEntity.ok(post);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
-}
 
-@PostMapping("/{postId}/unlike")
-public ResponseEntity<BlogPost> unlikePost(@PathVariable Long postId, @RequestParam Long userId) {
-    try {
-        BlogPost post = blogService.unlikePost(userId, postId);
-        return ResponseEntity.ok(post);
-    } catch (Exception e) {
-        return ResponseEntity.badRequest().build();
+    // Unlike bài blog
+    @PostMapping("/{postId}/unlike")
+    public ResponseEntity<BlogPost> unlikePost(@PathVariable Long postId) {
+        try {
+            BlogPost post = blogService.unlikePost(postId);
+            return ResponseEntity.ok(post);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
-}
+
     // Xóa bài blog
     @DeleteMapping("/{postId}")
     public ResponseEntity<Void> deletePost(@PathVariable Long postId) {

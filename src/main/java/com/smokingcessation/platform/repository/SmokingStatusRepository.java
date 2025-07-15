@@ -5,6 +5,7 @@ import com.smokingcessation.platform.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -15,4 +16,6 @@ public interface SmokingStatusRepository extends JpaRepository<SmokingStatus, Lo
     Optional<SmokingStatus> findByUserId(Long userId);
 
     boolean existsByUserId(Long userId);
+    List<SmokingStatus> findAllByUserId(Long userId);
+    Optional<SmokingStatus> findTopByUserIdOrderByCreatedAtDesc(Long userId);
 }

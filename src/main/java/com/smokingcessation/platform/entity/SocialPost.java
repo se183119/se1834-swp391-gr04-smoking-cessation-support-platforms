@@ -1,5 +1,6 @@
 package com.smokingcessation.platform.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -22,6 +23,7 @@ public class SocialPost {
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonManagedReference
     private User user;
 
     @Column(columnDefinition = "TEXT")
@@ -54,6 +56,7 @@ public class SocialPost {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+
     public enum PostType {
         ACHIEVEMENT_SHARE, // chia sẻ huy hiệu
         MOTIVATION, // động viên
@@ -65,4 +68,6 @@ public class SocialPost {
     public enum PostStatus {
         ACTIVE, HIDDEN, REPORTED, DELETED
     }
+
+
 }

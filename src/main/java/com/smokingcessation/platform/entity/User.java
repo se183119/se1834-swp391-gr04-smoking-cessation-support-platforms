@@ -72,6 +72,11 @@ public class User {
     @OneToMany(mappedBy = "author", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserPackageModel> userPackages = new ArrayList<>();
 
+    private String certification = ""; // Chứng chỉ huấn luyện viên
+    private String bio = ""; // Tiểu sử người dùng
+    @Column(name = "yoe")
+    private Float yoe = 0f;
+
     @CreationTimestamp
     @Column(name = "created_at")
     private LocalDateTime createdAt;

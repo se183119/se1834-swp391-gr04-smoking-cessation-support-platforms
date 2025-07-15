@@ -110,6 +110,16 @@ public class AchievementController {
         }
     }
 
+    @PostMapping("/create-user-achievement/{userId}/{achievementId}")
+    public ResponseEntity<Void> createUserAchievement(@PathVariable Long userId, @PathVariable Long achievementId) {
+        try {
+            achievementService.createUserAchievement(userId, achievementId);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
     // Admin: Cập nhật huy hiệu
     @PutMapping("/{achievementId}")
     public ResponseEntity<Achievement> updateAchievement(@PathVariable Long achievementId,
