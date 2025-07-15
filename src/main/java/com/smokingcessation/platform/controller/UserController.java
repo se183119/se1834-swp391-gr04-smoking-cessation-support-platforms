@@ -1,8 +1,10 @@
 package com.smokingcessation.platform.controller;
 
 import com.smokingcessation.platform.dto.LoginRequestDTO;
+import com.smokingcessation.platform.dto.SavingsDTO;
 import com.smokingcessation.platform.entity.User;
 import com.smokingcessation.platform.entity.Role;
+import com.smokingcessation.platform.entity.UserProgress;
 import com.smokingcessation.platform.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -43,6 +45,8 @@ public class UserController {
             return ResponseEntity.badRequest().build();
         }
     }
+
+
 
     @PostMapping("/register")
     public ResponseEntity<User> registerUser(@RequestBody UserRegistrationRequest request) {
@@ -151,6 +155,26 @@ public class UserController {
     public ResponseEntity<List<User>> getAllUsers() {
         List<User> users = userService.findAllUsers();
         return ResponseEntity.ok(users);
+    }
+
+    @GetMapping("/{userId}/get-user-saving-data")
+    public ResponseEntity<SavingsDTO> getUserSaving(@PathVariable Long userId) {
+        try {
+            SavingsDTO dto = userService.calculateSavings(userId);
+            return ResponseEntity.ok(dto);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/{userId}/get-progress")
+    public ResponseEntity<List<UserProgress>> getUserProgress(@PathVariable Long userId) {
+        try {
+            List<UserProgress> progress = userService.getUserProgressByUserId(userId);
+            return ResponseEntity.ok(progress);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     // DTOs

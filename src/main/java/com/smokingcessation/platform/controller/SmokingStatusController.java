@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/smoking-status")
@@ -42,12 +43,21 @@ public class SmokingStatusController {
         }
     }
 
+    // Lấy thông tin hút thuốc hiện tại của user
+    @GetMapping("/{userId}/current")
+    public ResponseEntity<SmokingStatus> getCurrentSmokingStatus(@PathVariable Long userId) {
+        try {
+            SmokingStatus currentStatus = smokingStatusService.findCurrentSmokingStatus(userId);
+            return ResponseEntity.ok(currentStatus);
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     // Lấy thông tin hút thuốc của user
     @GetMapping("/{userId}")
-    public ResponseEntity<SmokingStatus> getSmokingStatus(@PathVariable Long userId) {
-        return smokingStatusService.findByUserId(userId)
-            .map(ResponseEntity::ok)
-            .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<List<SmokingStatus>> getSmokingStatus(@PathVariable Long userId) {
+        return ResponseEntity.ok(smokingStatusService.findByUserId(userId));
     }
 
     // Cập nhật thói quen hút thuốc

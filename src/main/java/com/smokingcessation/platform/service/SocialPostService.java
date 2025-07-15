@@ -1,14 +1,10 @@
 package com.smokingcessation.platform.service;
 
-import com.smokingcessation.platform.entity.Like;
 import com.smokingcessation.platform.entity.SocialPost;
 import com.smokingcessation.platform.entity.User;
 import com.smokingcessation.platform.entity.UserAchievement;
-import com.smokingcessation.platform.repository.LikeRepository;
 import com.smokingcessation.platform.repository.SocialPostRepository;
 import com.smokingcessation.platform.repository.UserAchievementRepository;
-import com.smokingcessation.platform.repository.UserRepository;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,8 +18,6 @@ public class SocialPostService {
 
     private final SocialPostRepository socialPostRepository;
     private final UserAchievementRepository userAchievementRepository;
-    private final LikeRepository likeRepository; // ✅ THÊM
-    private final UserRepository userRepository; // ✅ THÊM
 
     public List<SocialPost> getAllActivePosts() {
         return socialPostRepository.findActivePostsOrderByCreatedAtDesc();
@@ -97,69 +91,21 @@ public class SocialPostService {
         return createPost(userId, advice, SocialPost.PostType.ADVICE);
     }
 
-    // public SocialPost likePost(Long postId) {
-    //     SocialPost post = socialPostRepository.findById(postId)
-    //         .orElseThrow(() -> new RuntimeException("Không tìm thấy bài đăng"));
-
-    //     post.setLikesCount(post.getLikesCount() + 1);
-    //     return socialPostRepository.save(post);
-    // }
-
-    // public SocialPost unlikePost(Long postId) {
-    //     SocialPost post = socialPostRepository.findById(postId)
-    //         .orElseThrow(() -> new RuntimeException("Không tìm thấy bài đăng"));
-
-    //     if (post.getLikesCount() > 0) {
-    //         post.setLikesCount(post.getLikesCount() - 1);
-    //     }
-    //     return socialPostRepository.save(post);
-    // }
-
-    public SocialPost likePost(Long userId, Long postId) {
-        // Kiểm tra user tồn tại
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
-        
-        // Kiểm tra post tồn tại
+    public SocialPost likePost(Long postId) {
         SocialPost post = socialPostRepository.findById(postId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy bài đăng"));
-        
-        // Kiểm tra đã like chưa
-        if (likeRepository.existsByUserIdAndPostIdAndPostType(userId, postId, "SOCIAL_POST")) {
-            throw new RuntimeException("Đã like bài đăng này rồi");
-        }
-        
-        // Tạo like record
-        Like like = new Like();
-        like.setUser(user);
-        like.setPostId(postId);
-        like.setPostType("SOCIAL_POST");
-        likeRepository.save(like);
-        
-        // Cập nhật count
-        post.setLikesCount(likeRepository.countByPostIdAndPostType(postId, "SOCIAL_POST"));
+
+        post.setLikesCount(post.getLikesCount() + 1);
         return socialPostRepository.save(post);
     }
 
-    public SocialPost unlikePost(Long userId, Long postId) {
-        // Kiểm tra user tồn tại
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
-        
-        // Kiểm tra post tồn tại
+    public SocialPost unlikePost(Long postId) {
         SocialPost post = socialPostRepository.findById(postId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy bài đăng"));
-        
-        // Kiểm tra đã like chưa
-        if (!likeRepository.existsByUserIdAndPostIdAndPostType(userId, postId, "SOCIAL_POST")) {
-            throw new RuntimeException("Chưa like bài đăng này");
+
+        if (post.getLikesCount() > 0) {
+            post.setLikesCount(post.getLikesCount() - 1);
         }
-        
-        // Xóa like record
-        likeRepository.deleteByUserIdAndPostIdAndPostType(userId, postId, "SOCIAL_POST");
-        
-        // Cập nhật count
-        post.setLikesCount(likeRepository.countByPostIdAndPostType(postId, "SOCIAL_POST"));
         return socialPostRepository.save(post);
     }
 

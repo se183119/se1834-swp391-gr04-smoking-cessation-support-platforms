@@ -22,7 +22,7 @@ public interface ProgressTrackingRepository extends JpaRepository<ProgressTracki
 
     @Query("SELECT pt FROM ProgressTracking pt WHERE pt.user.id = :userId ORDER BY pt.trackingDate DESC")
     List<ProgressTracking> findByUserIdOrderByTrackingDateDesc(@Param("userId") Long userId);
-
+ 
     @Query("SELECT pt FROM ProgressTracking pt WHERE pt.user.id = :userId AND pt.trackingDate BETWEEN :startDate AND :endDate")
     List<ProgressTracking> findByUserIdAndDateRange(@Param("userId") Long userId,
                                                    @Param("startDate") LocalDate startDate,

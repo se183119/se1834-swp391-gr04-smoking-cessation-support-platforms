@@ -52,7 +52,7 @@ public class Achievement {
     private LocalDateTime createdAt;
 
     public enum AchievementType {
-        DAYS_SMOKE_FREE, MONEY_SAVED, HEALTH_MILESTONE, STREAK, PARTICIPATION
+        DAYS_SMOKE_FREE, MONEY_SAVED, STREAK, TIME_SAVING, CIGARETTES_AVOIDED
     }
 
     public enum AchievementLevel {
