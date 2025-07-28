@@ -46,6 +46,9 @@ public class User {
     @Column(name = "profile_image")
     private String profileImage;
 
+    @Column(columnDefinition = "int default 0")
+    private int limitRemaining = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserStatus status = UserStatus.ACTIVE;
@@ -72,6 +75,8 @@ public class User {
     @OneToMany(mappedBy = "author", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserPackageModel> userPackages = new ArrayList<>();
 
+    @Lob
+    @Column(name = "certification", columnDefinition = "TEXT")
     private String certification = ""; // Chứng chỉ huấn luyện viên
     private String bio = ""; // Tiểu sử người dùng
     @Column(name = "yoe")

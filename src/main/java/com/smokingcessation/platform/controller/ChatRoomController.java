@@ -1,9 +1,14 @@
 package com.smokingcessation.platform.controller;
 
+import com.smokingcessation.platform.dto.MessageStatsResponse;
 import com.smokingcessation.platform.entity.ChatRoom;
 import com.smokingcessation.platform.entity.ChatRoomMessage;
+import com.smokingcessation.platform.entity.PackageModel;
+import com.smokingcessation.platform.entity.User;
 import com.smokingcessation.platform.repository.ChatRoomMessageRepository;
 import com.smokingcessation.platform.repository.ChatRoomRepository;
+import com.smokingcessation.platform.repository.IPackageRepository;
+import com.smokingcessation.platform.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,13 +23,16 @@ public class ChatRoomController {
 
     private final ChatRoomRepository chatRoomRepo;
     private final ChatRoomMessageRepository messageRepo;
-
+    private final IPackageRepository packageRepo;
+    private final UserRepository userRepo;
 
 
     public ChatRoomController(ChatRoomRepository chatRoomRepo,
-                              ChatRoomMessageRepository messageRepo) {
+                              ChatRoomMessageRepository messageRepo, IPackageRepository packageRepo, UserRepository userRepo) {
         this.chatRoomRepo = chatRoomRepo;
         this.messageRepo = messageRepo;
+        this.packageRepo = packageRepo;
+        this.userRepo = userRepo;
     }
 
     // Tạo mới ChatRoom
@@ -66,7 +74,28 @@ public class ChatRoomController {
         ChatRoom room = chatRoomRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "ChatRoom not found with id " + id));
+        // trừ lượng tn còn lại
+        if(payload.isUser()){
+         try{
+             long userId = room.getCreatedById();
+             User user = userRepo.findById(userId)
+                     .orElseThrow(() -> new ResponseStatusException(
+                             HttpStatus.NOT_FOUND, "User not found with id " + userId));
 
+             int limitRemaining = user.getLimitRemaining();
+                if (limitRemaining <= 0) {
+                    throw new ResponseStatusException(
+                            HttpStatus.FORBIDDEN, "User has reached message limit");
+                }
+                // Giảm limit
+                user.setLimitRemaining(limitRemaining - 1);
+             userRepo.save(user);
+         }
+            catch (Exception e) {
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, "Error updating user limit: " + e.getMessage());
+            }
+        }
         // Gắn phòng chat vào message rồi lưu
         payload.setChatRoom(room);
         return messageRepo.save(payload);
@@ -97,6 +126,29 @@ public class ChatRoomController {
     @GetMapping("/created-by/{createdById}")
     public List<ChatRoom> getByCreator(@PathVariable long createdById) {
         return chatRoomRepo.findByCreatedById(createdById);
+    }
+
+    @GetMapping("/participant/{userId}/statistics")
+    public MessageStatsResponse getParticipantMessageStats(@PathVariable long userId) {
+        // Chỉ tính tin nhắn chưa claim
+        int totalUnclaimedMessages = messageRepo.countUnclaimedMessagesByParticipantId(userId);
+
+        PackageModel defaultPackage = packageRepo.findDefaultPackage();
+        if (defaultPackage == null || defaultPackage.getLimitMessages() == 0) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Gói mặc định không hợp lệ");
+        }
+
+        int maxMessages = defaultPackage.getLimitMessages();
+        int salePrice = defaultPackage.getSalePrice();
+
+        double rawCostPerMessage = (double) salePrice / maxMessages;
+        long costPerMessage = Math.round(rawCostPerMessage * 0.7); // 70% hoa hồng
+
+        long totalCost = totalUnclaimedMessages * costPerMessage;
+
+        int supportedUsers = chatRoomRepo.countDistinctUsersSupported(userId);
+
+        return new MessageStatsResponse(userId, totalUnclaimedMessages, totalCost, supportedUsers);
     }
 
     /**
