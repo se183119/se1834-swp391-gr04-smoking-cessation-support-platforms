@@ -32,8 +32,7 @@ public class SwaggerConfig {
                                 .url("http://localhost:8080")
                                 .description("Development Server"),
                         new Server()
-                                .url("https://api.smokingcessation.com")
-                                // .url("https://scsp.autopass.blog")
+                                .url("https://scsp.autopass.blog")
                                 .description("Production Server")
                 ));
     }

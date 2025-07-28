@@ -149,9 +149,14 @@ public class OrderService {
         if (userPkgOpt.isEmpty()) {
             throw new BadRequestException("User package not found");
         }
+        User user = userRepository.findById(
+                order.getUser().getId()
+        ).get();
+        user.setLimitRemaining(100);
         UserPackageModel userPkg = userPkgOpt.get();
         userPkg.setActive(true);
         userPackageRepository.save(userPkg);
+
         return true;
     }
 

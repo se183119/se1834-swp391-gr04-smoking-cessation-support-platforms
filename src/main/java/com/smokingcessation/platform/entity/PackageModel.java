@@ -22,6 +22,10 @@ public class PackageModel extends BaseModel {
     private String imageUrl;
     private int price;
     private int salePrice;
+    @Column(columnDefinition = "int default 0")
+    private int limitMessages = 0;
+    @Column(name = "is_default", columnDefinition = "bit default 0")
+    public boolean isDefault = false;
     private Double rating;
     private int totalRating;
     private boolean isActive = true;
